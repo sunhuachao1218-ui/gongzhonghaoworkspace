@@ -1,10 +1,21 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createWorkbenchService } from "../lib/workbench-service.mjs";
 
 const port = Number(process.env.WORKBENCH_SERVICE_PORT || 4174);
 const vaultRoot = process.env.OBSIDIAN_VAULT_PATH || "/Users/huachao/Documents/Obsidian Vault";
 const hermesEnvPath = "/Users/huachao/.hermes/.env";
+const coverSampleRoots = {
+  types: "/Users/huachao/Desktop/封面预览",
+  palettes: "/Users/huachao/Desktop/封面样板/samples",
+  renderings: "/Users/huachao/Desktop/封面样板/samples",
+};
+const coverSampleFiles = {
+  types: new Set(["type-conceptual.png", "type-typography.png", "type-metaphor.png", "type-scene.png", "type-minimal.png"]),
+  palettes: new Set(["pal-warm.png", "pal-elegant.png", "pal-cool.png", "pal-dark.png", "pal-earth.png", "pal-vivid.png", "pal-pastel.png", "pal-mono.png", "pal-retro.png", "pal-duotone.png", "pal-macaron.png"]),
+  renderings: new Set(["ren-flat-vector.png", "ren-hand-drawn.png", "ren-painterly.png", "ren-digital.png", "ren-pixel.png", "ren-chalk.png", "ren-screen-print.png"]),
+};
 
 async function loadHermesApiEnvironment() {
   try {
@@ -31,6 +42,13 @@ function respond(response, status, body) {
   response.end(`${JSON.stringify(body)}\n`);
 }
 
+async function respondCoverSample(response, category, filename) {
+  if (!coverSampleRoots[category] || !coverSampleFiles[category].has(filename)) return respond(response, 404, { error: "Cover sample not found" });
+  const image = await readFile(join(coverSampleRoots[category], filename));
+  response.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "http://localhost:5173" });
+  response.end(image);
+}
+
 async function readJson(request) {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
@@ -40,6 +58,9 @@ async function readJson(request) {
 createServer(async (request, response) => {
   if (request.method === "OPTIONS") return respond(response, 204, {});
   try {
+    const pathname = new URL(request.url || "/", "http://127.0.0.1").pathname;
+    const sample = pathname.match(/^\/api\/cover-samples\/(types|palettes|renderings)\/([^/]+)$/);
+    if (request.method === "GET" && sample) return respondCoverSample(response, sample[1], sample[2]);
     if (request.method === "GET" && request.url === "/api/status") return respond(response, 200, await service.status());
     if (request.method === "GET" && request.url === "/api/projects") return respond(response, 200, await service.listProjects());
     if (request.method === "PUT" && request.url === "/api/projects") return respond(response, 200, await service.saveProject(await readJson(request)));

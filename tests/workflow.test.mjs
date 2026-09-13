@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canOpenStep, confirmStep, requestRevision, createProject, selectStepValue, selectDefaultStyle } from "../lib/workflow.js";
+import { canOpenStep, confirmStep, requestRevision, createProject, selectCoverOption, selectStepValue, selectDefaultStyle } from "../lib/workflow.js";
 
 const project = {
   currentStep: "topic",
@@ -48,4 +48,14 @@ test("layout and cover styles are stored as lightweight reusable preferences", (
   assert.equal(styled.layoutStyle, "石墨极简");
   assert.equal(styled.steps.layout.selectedValue, "石墨极简");
   assert.equal(styled.coverStyle, "未设置");
+});
+
+test("cover choices retain only the selected type, palette, and rendering", () => {
+  const created = createProject("新文章主题");
+  const typed = selectCoverOption(created, "type", "conceptual");
+  const selected = selectCoverOption(typed, "palette", "warm");
+
+  assert.deepEqual(selected.coverPreferences, { type: "conceptual", palette: "warm", rendering: null });
+  assert.equal(selected.steps.cover.selectedValue, "conceptual · warm");
+  assert.equal("content" in selected, false);
 });
