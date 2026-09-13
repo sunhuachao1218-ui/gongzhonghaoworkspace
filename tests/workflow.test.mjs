@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canOpenStep, confirmStep, requestRevision } from "../lib/workflow.js";
+import { canOpenStep, confirmStep, requestRevision, createProject, selectStepValue } from "../lib/workflow.js";
 
 const project = {
   currentStep: "topic",
@@ -25,4 +25,18 @@ test("requesting a revision locks all later steps", () => {
   assert.equal(revised.steps.topic.status, "needs_revision");
   assert.equal(revised.steps.cases.status, "not_started");
   assert.equal(canOpenStep(revised, "cases"), false);
+});
+
+test("selecting a case stores only the chosen lightweight project value", () => {
+  const selected = selectStepValue(project, "cases", "转轨案例");
+  assert.equal(selected.mainCase, "转轨案例");
+  assert.equal(selected.steps.cases.selectedValue, "转轨案例");
+});
+
+test("a new project starts at topic with no copied article content", () => {
+  const created = createProject("新文章主题");
+  assert.equal(created.title, "新文章主题");
+  assert.equal(created.currentStep, "topic");
+  assert.equal(created.steps.topic.status, "in_progress");
+  assert.deepEqual(created.steps.topic.versions, []);
 });
