@@ -7,7 +7,11 @@ import { STEPS, addVersion, canOpenStep, confirmStep, createProject, requestRevi
 const statusText = { not_started: "未开始", in_progress: "进行中", awaiting_confirmation: "待确认", confirmed: "已确认", needs_revision: "待修改" };
 
 export default function Home() {
-  const [projects, setProjects] = useState(INITIAL_PROJECTS);
+  const [projects, setProjects] = useState(() => {
+    if (typeof window === "undefined") return INITIAL_PROJECTS;
+    const saved = localStorage.getItem("gongzhonghao-workbench-projects");
+    return saved ? JSON.parse(saved) : INITIAL_PROJECTS;
+  });
   const [projectId, setProjectId] = useState(null);
   const [activeStep, setActiveStep] = useState(null);
   const [choice, setChoice] = useState("");
@@ -16,10 +20,7 @@ export default function Home() {
   const mutate = (fn) => setProjects((items) => items.map((p) => p.id === projectId ? fn(p) : p));
   const step = activeStep && project?.steps[activeStep];
   useEffect(() => { localStorage.setItem("gongzhonghao-workbench-projects", JSON.stringify(projects)); }, [projects]);
-  useEffect(() => {
-    const saved = localStorage.getItem("gongzhonghao-workbench-projects");
-    if (saved) setProjects(JSON.parse(saved));
-  }, []);
+  useEffect(() => { setChoice(project?.steps[activeStep]?.selectedValue ?? ""); }, [activeStep, projectId]);
   const createNewProject = () => {
     const title = window.prompt("输入文章主题");
     if (!title?.trim()) return;
