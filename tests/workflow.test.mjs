@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canOpenStep, confirmStep, requestRevision, createProject, selectStepValue } from "../lib/workflow.js";
+import { canOpenStep, confirmStep, requestRevision, createProject, selectStepValue, selectDefaultStyle } from "../lib/workflow.js";
 
 const project = {
   currentStep: "topic",
@@ -39,4 +39,13 @@ test("a new project starts at topic with no copied article content", () => {
   assert.equal(created.currentStep, "topic");
   assert.equal(created.steps.topic.status, "in_progress");
   assert.deepEqual(created.steps.topic.versions, []);
+});
+
+test("layout and cover styles are stored as lightweight reusable preferences", () => {
+  const created = createProject("新文章主题");
+  const styled = selectDefaultStyle(created, "layout", "石墨极简");
+
+  assert.equal(styled.layoutStyle, "石墨极简");
+  assert.equal(styled.steps.layout.selectedValue, "石墨极简");
+  assert.equal(styled.coverStyle, "未设置");
 });
