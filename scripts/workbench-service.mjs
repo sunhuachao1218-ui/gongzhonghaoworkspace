@@ -1,9 +1,30 @@
 import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
 import { createWorkbenchService } from "../lib/workbench-service.mjs";
 
 const port = Number(process.env.WORKBENCH_SERVICE_PORT || 4174);
 const vaultRoot = process.env.OBSIDIAN_VAULT_PATH || "/Users/huachao/Documents/Obsidian Vault";
-const service = createWorkbenchService({ vaultRoot });
+const hermesEnvPath = "/Users/huachao/.hermes/.env";
+
+async function loadHermesApiEnvironment() {
+  try {
+    const text = await readFile(hermesEnvPath, "utf8");
+    const entries = text.split(/\r?\n/).flatMap((line) => {
+      const match = line.match(/^\s*(API_SERVER_(?:KEY|PORT|HOST|ENABLED))=(.*)\s*$/);
+      return match ? [[match[1], match[2].replace(/^['"]|['"]$/g, "")]] : [];
+    });
+    return Object.fromEntries(entries);
+  } catch {
+    return {};
+  }
+}
+
+const hermesEnvironment = await loadHermesApiEnvironment();
+const service = createWorkbenchService({
+  vaultRoot,
+  hermesUrl: process.env.HERMES_API_URL || (hermesEnvironment.API_SERVER_ENABLED === "true" ? `http://${hermesEnvironment.API_SERVER_HOST || "127.0.0.1"}:${hermesEnvironment.API_SERVER_PORT || "8642"}` : undefined),
+  hermesApiKey: process.env.HERMES_API_KEY || hermesEnvironment.API_SERVER_KEY,
+});
 
 function respond(response, status, body) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "http://localhost:5173" });
