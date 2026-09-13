@@ -49,3 +49,22 @@ test("dispatches a selected step by Skill name without embedding writing rules",
   assert.match(JSON.parse(request.body).input, /article-draft-writing v1\.1\.1/);
   assert.doesNotMatch(JSON.parse(request.body).input, /1000|1500|规则细节/);
 });
+
+test("returns a pollable Hermes run status without returning content to the workbench", async () => {
+  const vaultRoot = await mkdtemp(join(tmpdir(), "workbench-service-"));
+  let url;
+  const service = createWorkbenchService({
+    vaultRoot,
+    hermesUrl: "http://127.0.0.1:8642",
+    hermesApiKey: "local-test-key-that-is-long-enough",
+    fetchImpl: async (requestUrl) => {
+      url = requestUrl;
+      return { ok: true, json: async () => ({ run_id: "run_test", status: "completed", output: "内容不会进入工作台" }) };
+    },
+  });
+
+  const status = await service.getRunStatus("run_test");
+
+  assert.equal(url, "http://127.0.0.1:8642/v1/runs/run_test");
+  assert.deepEqual(status, { runId: "run_test", status: "completed" });
+});

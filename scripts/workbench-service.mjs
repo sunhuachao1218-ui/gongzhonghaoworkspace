@@ -44,6 +44,7 @@ createServer(async (request, response) => {
     if (request.method === "GET" && request.url === "/api/projects") return respond(response, 200, await service.listProjects());
     if (request.method === "PUT" && request.url === "/api/projects") return respond(response, 200, await service.saveProject(await readJson(request)));
     if (request.method === "POST" && request.url === "/api/runs") return respond(response, 202, await service.runStep(await readJson(request)));
+    if (request.method === "GET" && request.url?.startsWith("/api/runs/")) return respond(response, 200, await service.getRunStatus(request.url.slice("/api/runs/".length)));
     return respond(response, 404, { error: "Not found" });
   } catch (error) {
     return respond(response, 400, { error: error instanceof Error ? error.message : "Unknown error" });

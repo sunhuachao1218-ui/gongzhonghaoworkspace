@@ -18,6 +18,7 @@ export default function Home() {
   const [caseRound, setCaseRound] = useState(1);
   const [integration, setIntegration] = useState({ vault: false, hermes: false });
   const [runMessage, setRunMessage] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
   const project = projects.find((item) => item.id === projectId);
   const open = (id) => { const item = projects.find((p) => p.id === id); setProjectId(id); setActiveStep(item.currentStep); setChoice(""); };
   const syncProject = (nextProject) => {
@@ -50,8 +51,23 @@ export default function Home() {
     try {
       const response = await fetch("http://127.0.0.1:4174/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project, step: { id: activeStep, label: STEPS.find(([id]) => id === activeStep)?.[1] }, skill: SKILL_MAP[activeStep] }) });
       if (!response.ok) throw new Error((await response.json()).error || "请求失败");
-      mutate((item) => addVersion(item, activeStep));
-      setRunMessage("Hermes 已接收任务。内容将写入 Obsidian，完成后请确认本版本。");
+      const started = await response.json();
+      setIsRunning(true);
+      setRunMessage("Hermes 正在处理，内容将直接写入 Obsidian…");
+      const poll = async () => {
+        const statusResponse = await fetch(`http://127.0.0.1:4174/api/runs/${started.run_id}`);
+        const status = await statusResponse.json();
+        if (!statusResponse.ok) throw new Error(status.error || "状态查询失败");
+        if (["completed", "succeeded"].includes(status.status)) {
+          mutate((item) => addVersion(item, activeStep));
+          setIsRunning(false);
+          setRunMessage("Hermes 已完成。内容在 Obsidian 中；请核对后确认本版本。");
+          return;
+        }
+        if (["failed", "cancelled"].includes(status.status)) throw new Error(status.error || "Hermes 未完成本次任务");
+        window.setTimeout(() => void poll().catch((error) => { setIsRunning(false); setRunMessage(error instanceof Error ? error.message : "Hermes 状态查询失败"); }), 2000);
+      };
+      void poll().catch((error) => { setIsRunning(false); setRunMessage(error instanceof Error ? error.message : "Hermes 状态查询失败"); });
     } catch (error) {
       setRunMessage(error instanceof Error ? error.message : "Hermes 请求失败");
     }
@@ -74,7 +90,7 @@ export default function Home() {
         {["outline", "draft"].includes(activeStep) && <div className="mt-6 rounded-xl border border-dashed border-[#c8d1c9] p-4"><p className="font-medium">完整版本</p><p className="mt-1 text-sm text-[#687269]">界面只记录版本与 Obsidian 路径；内容由 Hermes 生成后写入 Obsidian。</p>{activeStep === "draft" && <div className="mt-4 rounded-lg bg-[#fff7e5] p-3 text-sm"><b>事实审计区</b><br/>接口预留：审计状态、证据链接、待处理项。</div>}</div>}
         {["layout", "cover"].includes(activeStep) && <div className="mt-6 rounded-xl border border-dashed border-[#c8d1c9] p-4"><p className="font-medium">默认风格</p><p className="mt-1 text-sm text-[#687269]">首次选择后复用；第一阶段只保存偏好，不进行真实渲染或生成。</p><p className="mt-2 text-sm font-medium text-[#315841]">当前：{activeStep === "layout" ? project.layoutStyle : project.coverStyle}</p><button onClick={chooseDefaultStyle} className="mt-3 rounded-lg border px-3 py-2 text-sm">选择默认风格</button></div>}
         {activeStep === "wechat" && <div className="mt-6 rounded-xl bg-[#eef6ef] p-4"><p className="font-medium">微信草稿箱接口占位</p><p className="mt-1 text-sm text-[#687269]">仅在接口成功返回后标记为“已完成”；不会自动发布。</p><button onClick={() => mutate((p) => confirmStep(p, "wechat"))} className="mt-3 rounded-lg bg-[#1f4733] px-3 py-2 text-sm text-white">模拟接口成功</button></div>}
-        <div className="mt-7 flex flex-wrap gap-3"><button disabled={!integration.hermes} onClick={requestHermesRun} className="rounded-lg border px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-45">{["outline", "draft"].includes(activeStep) ? "调用 Hermes 重写" : "调用 Hermes 生成"}</button><button onClick={() => mutate((p) => confirmStep(["cases", "angle", "title"].includes(activeStep) && choice ? selectStepValue(p, activeStep, choice) : p, activeStep))} className="rounded-lg bg-[#1f4733] px-4 py-2 text-sm text-white">确认当前版本</button><button onClick={() => mutate((p) => requestRevision(p, activeStep))} className="rounded-lg px-4 py-2 text-sm text-[#8b3b31]">返回修改</button></div>{runMessage && <p className="mt-3 text-sm text-[#556b5d]">{runMessage}</p>}
+        <div className="mt-7 flex flex-wrap gap-3"><button disabled={!integration.hermes || isRunning} onClick={requestHermesRun} className="rounded-lg border px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-45">{isRunning ? "Hermes 处理中…" : ["outline", "draft"].includes(activeStep) ? "调用 Hermes 重写" : "调用 Hermes 生成"}</button><button onClick={() => mutate((p) => confirmStep(["cases", "angle", "title"].includes(activeStep) && choice ? selectStepValue(p, activeStep, choice) : p, activeStep))} className="rounded-lg bg-[#1f4733] px-4 py-2 text-sm text-white">确认当前版本</button><button onClick={() => mutate((p) => requestRevision(p, activeStep))} className="rounded-lg px-4 py-2 text-sm text-[#8b3b31]">返回修改</button></div>{runMessage && <p className="mt-3 text-sm text-[#556b5d]">{runMessage}</p>}
       </section><aside className="space-y-4"><div className="rounded-2xl border border-[#dfdad0] bg-white p-5"><h3 className="font-semibold">文章总控</h3>{[["主题", project.title],["当前案例", project.mainCase],["已选角度", project.angle],["当前标题", project.lockedTitle],["当前步骤", STEPS.find(([id]) => id === project.currentStep)?.[1]],["Obsidian", project.obsidianPath]].map(([k,v]) => <div className="mt-4" key={k}><p className="text-xs text-[#758078]">{k}</p><p className="mt-1 text-sm">{v}</p></div>)}</div><div className="rounded-2xl border border-[#dfdad0] bg-white p-5"><h3 className="font-semibold">版本记录</h3>{step.versions.length ? step.versions.map((v) => <p key={v} className="mt-3 rounded-lg bg-[#f6f4ef] px-3 py-2 text-sm">{v}{step.confirmedVersion === v ? " · 已确认" : " · 待确认"}</p>) : <p className="mt-3 text-sm text-[#758078]">尚无版本</p>}</div></aside></div></div></main>;
 
   const groups = { "刚开始": projects.filter((p) => p.steps.wechat.status !== "confirmed" && ["topic", "cases", "angle"].includes(p.currentStep)), "进行中": projects.filter((p) => p.steps.wechat.status !== "confirmed" && !["topic", "cases", "angle", "wechat"].includes(p.currentStep)), "已完成": projects.filter((p) => p.steps.wechat.status === "confirmed") };
