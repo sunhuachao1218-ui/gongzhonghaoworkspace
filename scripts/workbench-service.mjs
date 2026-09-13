@@ -11,8 +11,11 @@ const coverSampleRoots = {
   palettes: "/Users/huachao/Desktop/封面样板/samples",
   renderings: "/Users/huachao/Desktop/封面样板/samples",
 };
+const coverSamplePaths = {
+  types: { "type-hero.png": new URL("../public/cover-samples/type-hero.png", import.meta.url).pathname },
+};
 const coverSampleFiles = {
-  types: new Set(["type-conceptual.png", "type-typography.png", "type-metaphor.png", "type-scene.png", "type-minimal.png"]),
+  types: new Set(["type-hero.png", "type-conceptual.png", "type-typography.png", "type-metaphor.png", "type-scene.png", "type-minimal.png"]),
   palettes: new Set(["pal-warm.png", "pal-elegant.png", "pal-cool.png", "pal-dark.png", "pal-earth.png", "pal-vivid.png", "pal-pastel.png", "pal-mono.png", "pal-retro.png", "pal-duotone.png", "pal-macaron.png"]),
   renderings: new Set(["ren-flat-vector.png", "ren-hand-drawn.png", "ren-painterly.png", "ren-digital.png", "ren-pixel.png", "ren-chalk.png", "ren-screen-print.png"]),
 };
@@ -44,8 +47,9 @@ function respond(response, status, body) {
 
 async function respondCoverSample(response, category, filename) {
   if (!coverSampleRoots[category] || !coverSampleFiles[category].has(filename)) return respond(response, 404, { error: "Cover sample not found" });
-  const image = await readFile(join(coverSampleRoots[category], filename));
-  response.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "http://localhost:5173" });
+  const projectAsset = coverSamplePaths[category]?.[filename];
+  const image = await readFile(projectAsset || join(coverSampleRoots[category], filename));
+  response.writeHead(200, { "Content-Type": projectAsset ? "image/png" : "image/jpeg", "Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "http://localhost:5173" });
   response.end(image);
 }
 

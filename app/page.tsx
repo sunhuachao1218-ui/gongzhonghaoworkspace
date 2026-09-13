@@ -2,16 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { INITIAL_PROJECTS, SKILL_MAP, CASES, ANGLES, TITLES, COVER_OPTIONS } from "../lib/data.js";
-import { STEPS, addVersion, canOpenStep, confirmStep, createProject, requestRevision, selectCoverOption, selectDefaultStyle, selectStepValue } from "../lib/workflow.js";
+import { STEPS, addVersion, canOpenStep, confirmStep, createProject, ensureCoverTestProject, requestRevision, selectCoverOption, selectDefaultStyle, selectStepValue } from "../lib/workflow.js";
 
 const statusText = { not_started: "未开始", in_progress: "进行中", awaiting_confirmation: "待确认", confirmed: "已确认", needs_revision: "待修改" };
 
 export default function Home() {
-  const [projects, setProjects] = useState(() => {
-    if (typeof window === "undefined") return INITIAL_PROJECTS;
-    const saved = localStorage.getItem("gongzhonghao-workbench-projects");
-    return saved ? JSON.parse(saved) : INITIAL_PROJECTS;
-  });
+  const [projects, setProjects] = useState(INITIAL_PROJECTS);
+  const [hasLoadedLocalProjects, setHasLoadedLocalProjects] = useState(false);
   const [projectId, setProjectId] = useState(null);
   const [activeStep, setActiveStep] = useState(null);
   const [choice, setChoice] = useState("");
@@ -32,7 +29,12 @@ export default function Home() {
     return nextProject;
   }));
   const step = activeStep && project?.steps[activeStep];
-  useEffect(() => { localStorage.setItem("gongzhonghao-workbench-projects", JSON.stringify(projects)); }, [projects]);
+  useEffect(() => {
+    const saved = localStorage.getItem("gongzhonghao-workbench-projects");
+    setProjects(ensureCoverTestProject(saved ? JSON.parse(saved) : INITIAL_PROJECTS));
+    setHasLoadedLocalProjects(true);
+  }, []);
+  useEffect(() => { if (hasLoadedLocalProjects) localStorage.setItem("gongzhonghao-workbench-projects", JSON.stringify(projects)); }, [hasLoadedLocalProjects, projects]);
   useEffect(() => { setChoice(project?.steps[activeStep]?.selectedValue ?? ""); }, [activeStep, projectId]);
   useEffect(() => {
     void fetch("http://127.0.0.1:4174/api/status").then((response) => response.ok ? response.json() : Promise.reject()).then((status) => setIntegration({ vault: Boolean(status.vault?.connected), hermes: Boolean(status.hermes?.configured) })).catch(() => setIntegration({ vault: false, hermes: false }));

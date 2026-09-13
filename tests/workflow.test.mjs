@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canOpenStep, confirmStep, requestRevision, createProject, selectCoverOption, selectStepValue, selectDefaultStyle } from "../lib/workflow.js";
+import { canOpenStep, confirmStep, requestRevision, createCoverTestProject, createProject, ensureCoverTestProject, selectCoverOption, selectStepValue, selectDefaultStyle } from "../lib/workflow.js";
 
 const project = {
   currentStep: "topic",
@@ -58,4 +58,23 @@ test("cover choices retain only the selected type, palette, and rendering", () =
   assert.deepEqual(selected.coverPreferences, { type: "conceptual", palette: "warm", rendering: null });
   assert.equal(selected.steps.cover.selectedValue, "conceptual · warm");
   assert.equal("content" in selected, false);
+});
+
+test("cover test project opens directly at the cover step without article content", () => {
+  const testProject = createCoverTestProject();
+
+  assert.equal(testProject.currentStep, "cover");
+  assert.equal(testProject.steps.layout.status, "confirmed");
+  assert.equal(testProject.steps.cover.status, "in_progress");
+  assert.equal(testProject.vaultManaged, false);
+  assert.equal("content" in testProject, false);
+});
+
+test("test-project migration preserves existing projects and adds the cover tester once", () => {
+  const initial = [{ id: "existing" }];
+  const migrated = ensureCoverTestProject(initial);
+
+  assert.equal(migrated[0].id, "cover-sample-test");
+  assert.equal(migrated[1].id, "existing");
+  assert.equal(ensureCoverTestProject(migrated), migrated);
 });
