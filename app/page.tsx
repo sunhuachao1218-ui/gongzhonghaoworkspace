@@ -16,22 +16,36 @@ export default function Home() {
   const [activeStep, setActiveStep] = useState(null);
   const [choice, setChoice] = useState("");
   const [caseRound, setCaseRound] = useState(1);
+  const [integration, setIntegration] = useState({ vault: false, hermes: false });
   const project = projects.find((item) => item.id === projectId);
   const open = (id) => { const item = projects.find((p) => p.id === id); setProjectId(id); setActiveStep(item.currentStep); setChoice(""); };
-  const mutate = (fn) => setProjects((items) => items.map((p) => p.id === projectId ? fn(p) : p));
+  const syncProject = (nextProject) => {
+    if (!nextProject.vaultManaged) return;
+    void fetch("http://127.0.0.1:4174/api/projects", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(nextProject) }).catch(() => undefined);
+  };
+  const mutate = (fn) => setProjects((items) => items.map((p) => {
+    if (p.id !== projectId) return p;
+    const nextProject = fn(p);
+    syncProject(nextProject);
+    return nextProject;
+  }));
   const step = activeStep && project?.steps[activeStep];
   useEffect(() => { localStorage.setItem("gongzhonghao-workbench-projects", JSON.stringify(projects)); }, [projects]);
   useEffect(() => { setChoice(project?.steps[activeStep]?.selectedValue ?? ""); }, [activeStep, projectId]);
+  useEffect(() => {
+    void fetch("http://127.0.0.1:4174/api/status").then((response) => response.ok ? response.json() : Promise.reject()).then((status) => setIntegration({ vault: Boolean(status.vault?.connected), hermes: Boolean(status.hermes?.configured) })).catch(() => setIntegration({ vault: false, hermes: false }));
+  }, []);
   const createNewProject = () => {
     const title = window.prompt("输入文章主题");
     if (!title?.trim()) return;
-    const created = createProject(title.trim());
+    const created = { ...createProject(title.trim()), vaultManaged: true };
     setProjects((items) => [created, ...items]);
+    syncProject(created);
     setProjectId(created.id); setActiveStep("topic"); setChoice("");
   };
 
   if (project) return <main className="min-h-screen bg-[#f5f2ec] p-4 text-[#20211e] sm:p-8">
-    <header className="mb-7 flex items-center justify-between"><button onClick={() => setProjectId(null)} className="text-sm text-[#556b5d]">← 返回看板</button><span className="rounded-full bg-white px-3 py-1 text-xs">本地 MVP · 未连接外部服务</span></header>
+    <header className="mb-7 flex items-center justify-between"><button onClick={() => setProjectId(null)} className="text-sm text-[#556b5d]">← 返回看板</button><span className="rounded-full bg-white px-3 py-1 text-xs">{integration.vault ? "Obsidian 已连接" : "本地 MVP"} · {integration.hermes ? "Hermes 已就绪" : "Hermes 待接入"}</span></header>
     <div className="mx-auto max-w-7xl"><p className="text-xs font-semibold tracking-[.18em] text-[#7b8579]">文章项目</p><h1 className="mt-2 max-w-3xl text-3xl font-semibold tracking-tight">{project.title}</h1>
       <section className="my-7 grid gap-2 rounded-2xl border border-[#dfdad0] bg-white p-4 shadow-sm lg:grid-cols-9">{STEPS.map(([id, label], i) => <button key={id} disabled={!canOpenStep(project, id)} onClick={() => setActiveStep(id)} className={`rounded-xl p-3 text-left ${activeStep === id ? "bg-[#1f4733] text-white" : "bg-[#f6f4ef]"} disabled:opacity-45`}><span className="block text-xs opacity-70">{i + 1}. {project.steps[id].status === "confirmed" ? "✓" : "○"}</span><span className="mt-1 block text-sm font-medium">{label}</span></button>)}</section>
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]"><section className="rounded-2xl border border-[#dfdad0] bg-white p-6 shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-[#687269]">第 {STEPS.findIndex(([id]) => id === activeStep) + 1} 步</p><h2 className="text-2xl font-semibold">{STEPS.find(([id]) => id === activeStep)?.[1]}</h2></div><span className="rounded-full bg-[#e9efe9] px-3 py-1 text-sm text-[#315841]">{statusText[step.status]}</span></div>
@@ -44,7 +58,7 @@ export default function Home() {
       </section><aside className="space-y-4"><div className="rounded-2xl border border-[#dfdad0] bg-white p-5"><h3 className="font-semibold">文章总控</h3>{[["主题", project.title],["当前案例", project.mainCase],["已选角度", project.angle],["当前标题", project.lockedTitle],["当前步骤", STEPS.find(([id]) => id === project.currentStep)?.[1]],["Obsidian", project.obsidianPath]].map(([k,v]) => <div className="mt-4" key={k}><p className="text-xs text-[#758078]">{k}</p><p className="mt-1 text-sm">{v}</p></div>)}</div><div className="rounded-2xl border border-[#dfdad0] bg-white p-5"><h3 className="font-semibold">版本记录</h3>{step.versions.length ? step.versions.map((v) => <p key={v} className="mt-3 rounded-lg bg-[#f6f4ef] px-3 py-2 text-sm">{v}{step.confirmedVersion === v ? " · 已确认" : " · 待确认"}</p>) : <p className="mt-3 text-sm text-[#758078]">尚无版本</p>}</div></aside></div></div></main>;
 
   const groups = { "刚开始": projects.filter((p) => p.steps.wechat.status !== "confirmed" && ["topic", "cases", "angle"].includes(p.currentStep)), "进行中": projects.filter((p) => p.steps.wechat.status !== "confirmed" && !["topic", "cases", "angle", "wechat"].includes(p.currentStep)), "已完成": projects.filter((p) => p.steps.wechat.status === "confirmed") };
-  return <main className="min-h-screen bg-[#f5f2ec] px-4 py-8 text-[#20211e] sm:px-8"><div className="mx-auto max-w-7xl"><header className="flex items-end justify-between"><div><p className="text-xs font-semibold tracking-[.18em] text-[#6d796e]">本地工作台</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">公众号内容生产</h1><p className="mt-2 text-[#687269]">流程与状态在这里，业务规则只来自 Hermes Skills。</p></div><button onClick={createNewProject} className="rounded-lg bg-[#1f4733] px-4 py-2 text-sm text-white">+ 新建文章</button></header><div className="mt-8 grid gap-6 xl:grid-cols-3">{Object.entries(groups).map(([name, items]) => <section key={name}><div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{name}</h2><span className="text-sm text-[#758078]">{items.length}</span></div><div className="space-y-4">{items.length ? items.map((p) => <button key={p.id} onClick={() => open(p.id)} className="w-full rounded-2xl border border-[#dfdad0] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5"><p className="font-semibold">{p.title}</p><div className="mt-3 flex items-center justify-between gap-3"><span className="rounded-lg bg-[#e6f0e8] px-2.5 py-1 text-sm font-semibold text-[#315841]">当前：{STEPS.find(([id]) => id === p.currentStep)?.[1]}</span><span className="text-sm font-medium text-[#59635a]">进度 {Object.values(p.steps).filter((s) => s.status === "confirmed").length} / 9</span></div><div className="mt-4 flex gap-1">{STEPS.map(([id]) => <span key={id} className={`h-2 flex-1 rounded-full ${p.steps[id].status === "confirmed" ? "bg-[#3f7450]" : id === p.currentStep ? "bg-[#d2a65e]" : "bg-[#e8e5de]"}`} />)}</div><p className="mt-4 text-sm font-medium text-[#315841]">继续 →</p></button>) : <div className="rounded-2xl border border-dashed border-[#d7d2ca] p-5 text-sm text-[#758078]">成功进入微信草稿箱的文章会出现在这里。</div>}</div></section>)}</div></div></main>;
+  return <main className="min-h-screen bg-[#f5f2ec] px-4 py-8 text-[#20211e] sm:px-8"><div className="mx-auto max-w-7xl"><header className="flex items-end justify-between"><div><p className="text-xs font-semibold tracking-[.18em] text-[#6d796e]">本地工作台</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">公众号内容生产</h1><p className="mt-2 text-[#687269]">流程与状态在这里，业务规则只来自 Hermes Skills。</p><p className="mt-2 text-sm text-[#556b5d]">{integration.vault ? "Obsidian 已连接" : "Obsidian 本地服务未启动"} · {integration.hermes ? "Hermes 已就绪" : "Hermes 等待本机 API 配置"}</p></div><button onClick={createNewProject} className="rounded-lg bg-[#1f4733] px-4 py-2 text-sm text-white">+ 新建文章</button></header><div className="mt-8 grid gap-6 xl:grid-cols-3">{Object.entries(groups).map(([name, items]) => <section key={name}><div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{name}</h2><span className="text-sm text-[#758078]">{items.length}</span></div><div className="space-y-4">{items.length ? items.map((p) => <button key={p.id} onClick={() => open(p.id)} className="w-full rounded-2xl border border-[#dfdad0] bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5"><p className="font-semibold">{p.title}</p><div className="mt-3 flex items-center justify-between gap-3"><span className="rounded-lg bg-[#e6f0e8] px-2.5 py-1 text-sm font-semibold text-[#315841]">当前：{STEPS.find(([id]) => id === p.currentStep)?.[1]}</span><span className="text-sm font-medium text-[#59635a]">进度 {Object.values(p.steps).filter((s) => s.status === "confirmed").length} / 9</span></div><div className="mt-4 flex gap-1">{STEPS.map(([id]) => <span key={id} className={`h-2 flex-1 rounded-full ${p.steps[id].status === "confirmed" ? "bg-[#3f7450]" : id === p.currentStep ? "bg-[#d2a65e]" : "bg-[#e8e5de]"}`} />)}</div><p className="mt-4 text-sm font-medium text-[#315841]">继续 →</p></button>) : <div className="rounded-2xl border border-dashed border-[#d7d2ca] p-5 text-sm text-[#758078]">成功进入微信草稿箱的文章会出现在这里。</div>}</div></section>)}</div></div></main>;
 }
 /* Legacy starter placeholder retained only as a comment.
       <header
