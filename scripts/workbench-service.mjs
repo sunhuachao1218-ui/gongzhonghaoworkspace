@@ -59,7 +59,12 @@ async function currentCommittee() {
 }
 
 function respond(response, status, body) {
-  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "http://localhost:5173" });
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "http://localhost:5173",
+    "Access-Control-Allow-Methods": "GET, PUT, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  });
   response.end(`${JSON.stringify(body)}\n`);
 }
 
