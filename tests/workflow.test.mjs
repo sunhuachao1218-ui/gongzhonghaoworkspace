@@ -41,6 +41,14 @@ test("selecting a confirmed draft stores only its Obsidian file path", () => {
   assert.equal(updated.steps.draft.selectedValue, "draft-v2.md");
 });
 
+test("selecting a committee topic updates the project theme before confirmation", () => {
+  const project = createProject("原始主题");
+  const updated = selectStepValue(project, "topic", "上海民办还是外地公办");
+
+  assert.equal(updated.title, "上海民办还是外地公办");
+  assert.equal(updated.steps.topic.selectedValue, "上海民办还是外地公办");
+});
+
 test("a new project starts at topic with no copied article content", () => {
   const created = createProject("新文章主题");
   assert.equal(created.title, "新文章主题");
