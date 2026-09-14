@@ -18,7 +18,7 @@ export default function Home() {
   const [committeeMaterials, setCommitteeMaterials] = useState("");
   const [committeeResult, setCommitteeResult] = useState(null);
   const [showModelSettings, setShowModelSettings] = useState(false);
-  const [modelSettings, setModelSettings] = useState({ model: "openai/gpt-5.4-mini", configured: false });
+  const [modelSettings, setModelSettings] = useState({ model: "", configured: false });
   const [committeeKey, setCommitteeKey] = useState("");
   const [availableModels, setAvailableModels] = useState([]);
   const [settingsMessage, setSettingsMessage] = useState("");
@@ -52,7 +52,7 @@ export default function Home() {
   useEffect(() => { if (hasLoadedLocalProjects) localStorage.setItem("gongzhonghao-workbench-projects", JSON.stringify(projects)); }, [hasLoadedLocalProjects, projects]);
   useEffect(() => { setChoice(project?.steps[activeStep]?.selectedValue ?? ""); }, [activeStep, projectId]);
   useEffect(() => {
-    void fetch("http://127.0.0.1:4174/api/status").then((response) => response.ok ? response.json() : Promise.reject()).then((status) => { setIntegration({ vault: Boolean(status.vault?.connected), hermes: Boolean(status.hermes?.configured), committee: Boolean(status.committee?.configured) }); setModelSettings(status.committee || { model: "openai/gpt-5.4-mini", configured: false }); }).catch(() => setIntegration({ vault: false, hermes: false, committee: false }));
+    void fetch("http://127.0.0.1:4174/api/status").then((response) => response.ok ? response.json() : Promise.reject()).then((status) => { setIntegration({ vault: Boolean(status.vault?.connected), hermes: Boolean(status.hermes?.configured), committee: Boolean(status.committee?.configured) }); setModelSettings(status.committee?.configured ? status.committee : { model: "", configured: false }); }).catch(() => setIntegration({ vault: false, hermes: false, committee: false }));
   }, []);
   const createNewProject = () => {
     const title = window.prompt("输入文章主题");
