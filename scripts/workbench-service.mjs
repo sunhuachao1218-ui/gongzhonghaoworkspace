@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createWorkbenchService } from "../lib/workbench-service.mjs";
 import { createReaderCommitteeService } from "../lib/reader-committee.mjs";
+import { createReaderCommitteeSettingsStore } from "../lib/reader-committee-settings.mjs";
 
 const port = Number(process.env.WORKBENCH_SERVICE_PORT || 4174);
 const vaultRoot = process.env.OBSIDIAN_VAULT_PATH || "/Users/huachao/Documents/Obsidian Vault";
@@ -46,18 +47,16 @@ async function loadCommitteeEnvironment() {
 }
 
 const hermesEnvironment = await loadHermesApiEnvironment();
-const committeeEnvironment = await loadCommitteeEnvironment();
 const service = createWorkbenchService({
   vaultRoot,
   hermesUrl: process.env.HERMES_API_URL || (hermesEnvironment.API_SERVER_ENABLED === "true" ? `http://${hermesEnvironment.API_SERVER_HOST || "127.0.0.1"}:${hermesEnvironment.API_SERVER_PORT || "8642"}` : undefined),
   hermesApiKey: process.env.HERMES_API_KEY || hermesEnvironment.API_SERVER_KEY,
 });
-const committee = createReaderCommitteeService({
-  vaultRoot,
-  apiUrl: process.env.READER_COMMITTEE_API_URL || committeeEnvironment.READER_COMMITTEE_API_URL,
-  apiKey: process.env.READER_COMMITTEE_API_KEY || committeeEnvironment.READER_COMMITTEE_API_KEY,
-  model: process.env.READER_COMMITTEE_MODEL || committeeEnvironment.READER_COMMITTEE_MODEL || "GLM-5.3-Flash",
-});
+const committeeSettings = createReaderCommitteeSettingsStore({ envPath: committeeEnvPath });
+async function currentCommittee() {
+  const environment = await loadCommitteeEnvironment();
+  return createReaderCommitteeService({ vaultRoot, apiUrl: process.env.READER_COMMITTEE_API_URL || environment.READER_COMMITTEE_API_URL, apiKey: process.env.READER_COMMITTEE_API_KEY || environment.READER_COMMITTEE_API_KEY, model: process.env.READER_COMMITTEE_MODEL || environment.READER_COMMITTEE_MODEL || "openai/gpt-5.4-mini" });
+}
 
 function respond(response, status, body) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "http://localhost:5173" });
@@ -84,11 +83,13 @@ createServer(async (request, response) => {
     const pathname = new URL(request.url || "/", "http://127.0.0.1").pathname;
     const sample = pathname.match(/^\/api\/cover-samples\/(types|palettes|renderings)\/([^/]+)$/);
     if (request.method === "GET" && sample) return respondCoverSample(response, sample[1], sample[2]);
-    if (request.method === "GET" && request.url === "/api/status") return respond(response, 200, { ...(await service.status()), committee: { configured: committee.configured } });
+    if (request.method === "GET" && request.url === "/api/status") return respond(response, 200, { ...(await service.status()), committee: await committeeSettings.status() });
     if (request.method === "GET" && request.url === "/api/projects") return respond(response, 200, await service.listProjects());
     if (request.method === "PUT" && request.url === "/api/projects") return respond(response, 200, await service.saveProject(await readJson(request)));
     if (request.method === "POST" && request.url === "/api/runs") return respond(response, 202, await service.runStep(await readJson(request)));
-    if (request.method === "POST" && request.url === "/api/reader-committee") return respond(response, 200, await committee.run(await readJson(request)));
+    if (request.method === "GET" && request.url === "/api/reader-committee/models") return respond(response, 200, await committeeSettings.listModels());
+    if (request.method === "PUT" && request.url === "/api/reader-committee/settings") return respond(response, 200, await committeeSettings.save(await readJson(request)));
+    if (request.method === "POST" && request.url === "/api/reader-committee") return respond(response, 200, await (await currentCommittee()).run(await readJson(request)));
     if (request.method === "GET" && request.url?.startsWith("/api/runs/")) return respond(response, 200, await service.getRunStatus(request.url.slice("/api/runs/".length)));
     return respond(response, 404, { error: "Not found" });
   } catch (error) {
