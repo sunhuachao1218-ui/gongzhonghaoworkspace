@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createWorkbenchService } from "../lib/workbench-service.mjs";
 import { createReaderCommitteeService } from "../lib/reader-committee.mjs";
 import { createReaderCommitteeSettingsStore } from "../lib/reader-committee-settings.mjs";
+import { createReaderCommitteeConfigStore } from "../lib/reader-committee-config.mjs";
 
 const port = Number(process.env.WORKBENCH_SERVICE_PORT || 4174);
 const vaultRoot = process.env.OBSIDIAN_VAULT_PATH || "/Users/huachao/Documents/Obsidian Vault";
@@ -53,6 +54,7 @@ const service = createWorkbenchService({
   hermesApiKey: process.env.HERMES_API_KEY || hermesEnvironment.API_SERVER_KEY,
 });
 const committeeSettings = createReaderCommitteeSettingsStore({ envPath: committeeEnvPath });
+const committeeConfig = createReaderCommitteeConfigStore({ vaultRoot });
 async function currentCommittee() {
   const environment = await loadCommitteeEnvironment();
   return createReaderCommitteeService({ vaultRoot, apiUrl: process.env.READER_COMMITTEE_API_URL || environment.READER_COMMITTEE_API_URL, apiKey: process.env.READER_COMMITTEE_API_KEY || environment.READER_COMMITTEE_API_KEY, model: process.env.READER_COMMITTEE_MODEL || environment.READER_COMMITTEE_MODEL || "openai/gpt-5.4-mini" });
@@ -94,6 +96,8 @@ createServer(async (request, response) => {
     if (request.method === "POST" && request.url === "/api/runs") return respond(response, 202, await service.runStep(await readJson(request)));
     if (request.method === "GET" && request.url === "/api/reader-committee/models") return respond(response, 200, await committeeSettings.listModels());
     if (request.method === "PUT" && request.url === "/api/reader-committee/settings") return respond(response, 200, await committeeSettings.save(await readJson(request)));
+    if (request.method === "GET" && request.url === "/api/reader-committee/config") return respond(response, 200, await committeeConfig.load());
+    if (request.method === "PUT" && request.url === "/api/reader-committee/config") return respond(response, 200, await committeeConfig.save(await readJson(request)));
     if (request.method === "POST" && request.url === "/api/reader-committee/files") return respond(response, 200, await (await currentCommittee()).listMarkdownFiles((await readJson(request)).project));
     if (request.method === "POST" && request.url === "/api/reader-committee") return respond(response, 200, await (await currentCommittee()).run(await readJson(request)));
     if (request.method === "GET" && request.url?.startsWith("/api/runs/")) return respond(response, 200, await service.getRunStatus(request.url.slice("/api/runs/".length)));
