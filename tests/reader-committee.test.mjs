@@ -15,6 +15,17 @@ test("builds a topic meeting request from the selected reader profiles", () => {
   assert.match(request.messages[0].content, /严格 JSON/);
 });
 
+test("uses a forced-choice title brief instead of the topic-meeting schema", () => {
+  const request = buildReaderCommitteeRequest({
+    stage: "title",
+    materials: "候选标题：A｜B｜C",
+  });
+
+  assert.match(request.messages[0].content, /强制只选一个标题/);
+  assert.match(request.messages[1].content, /候选标题：A｜B｜C/);
+  assert.doesNotMatch(request.messages[0].content, /选题会的 JSON 结构/);
+});
+
 test("writes a committee report to Obsidian and never adds it to project metadata", async () => {
   const root = await import("node:fs/promises").then(({ mkdtemp }) => mkdtemp("/tmp/reader-committee-"));
   const service = createReaderCommitteeService({
