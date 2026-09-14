@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { buildReaderCommitteeRequest, createReaderCommitteeService } from "../lib/reader-committee.mjs";
 
 test("builds a topic meeting request from the selected reader profiles", () => {
@@ -39,4 +40,21 @@ test("writes a committee report to Obsidian and never adds it to project metadat
 
   assert.match(result.reportPath, /reader-committee\/topic-v\d+\.json$/);
   assert.equal(result.summary.candidates[0].title, "上海民办还是外地公办");
+});
+
+test("reads a selected confirmed draft from its Obsidian project folder without copying it into the report", async () => {
+  const root = await mkdtemp("/tmp/reader-committee-");
+  const projectPath = "04-内容创作/公众号/工作台项目/article-1";
+  await mkdir(`${root}/${projectPath}`, { recursive: true });
+  await writeFile(`${root}/${projectPath}/draft-v1.md`, "这是一篇已确认正文。", "utf8");
+  let request;
+  const service = createReaderCommitteeService({
+    vaultRoot: root, apiUrl: "http://127.0.0.1:9999/v1/chat/completions", apiKey: "test-key",
+    fetchImpl: async (_url, options) => { request = JSON.parse(options.body); return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ readers: [] }) } }] }) }; },
+  });
+
+  const result = await service.run({ project: { id: "article-1", title: "测试", obsidianPath: projectPath }, stage: "draft", confirmedSourcePath: "draft-v1.md" });
+
+  assert.match(request.messages[1].content, /这是一篇已确认正文/);
+  assert.equal(result.sourcePath, `${projectPath}/draft-v1.md`);
 });

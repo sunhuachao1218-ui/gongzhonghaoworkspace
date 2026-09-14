@@ -94,6 +94,7 @@ createServer(async (request, response) => {
     if (request.method === "POST" && request.url === "/api/runs") return respond(response, 202, await service.runStep(await readJson(request)));
     if (request.method === "GET" && request.url === "/api/reader-committee/models") return respond(response, 200, await committeeSettings.listModels());
     if (request.method === "PUT" && request.url === "/api/reader-committee/settings") return respond(response, 200, await committeeSettings.save(await readJson(request)));
+    if (request.method === "POST" && request.url === "/api/reader-committee/files") return respond(response, 200, await (await currentCommittee()).listMarkdownFiles((await readJson(request)).project));
     if (request.method === "POST" && request.url === "/api/reader-committee") return respond(response, 200, await (await currentCommittee()).run(await readJson(request)));
     if (request.method === "GET" && request.url?.startsWith("/api/runs/")) return respond(response, 200, await service.getRunStatus(request.url.slice("/api/runs/".length)));
     return respond(response, 404, { error: "Not found" });

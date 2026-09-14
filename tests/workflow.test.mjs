@@ -33,6 +33,14 @@ test("selecting a case stores only the chosen lightweight project value", () => 
   assert.equal(selected.steps.cases.selectedValue, "转轨案例");
 });
 
+test("selecting a confirmed draft stores only its Obsidian file path", () => {
+  const project = createProject("测试文章");
+  const updated = selectStepValue(project, "draft", "draft-v2.md");
+
+  assert.equal(updated.confirmedDraftPath, "draft-v2.md");
+  assert.equal(updated.steps.draft.selectedValue, "draft-v2.md");
+});
+
 test("a new project starts at topic with no copied article content", () => {
   const created = createProject("新文章主题");
   assert.equal(created.title, "新文章主题");
