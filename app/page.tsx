@@ -14,7 +14,9 @@ export default function Home() {
   const [activeStep, setActiveStep] = useState(null);
   const [choice, setChoice] = useState("");
   const [caseRound, setCaseRound] = useState(1);
-  const [integration, setIntegration] = useState({ vault: false, hermes: false });
+  const [integration, setIntegration] = useState({ vault: false, hermes: false, committee: false });
+  const [committeeMaterials, setCommitteeMaterials] = useState("");
+  const [committeeResult, setCommitteeResult] = useState(null);
   const [runMessage, setRunMessage] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [samplePreview, setSamplePreview] = useState(null);
@@ -45,7 +47,7 @@ export default function Home() {
   useEffect(() => { if (hasLoadedLocalProjects) localStorage.setItem("gongzhonghao-workbench-projects", JSON.stringify(projects)); }, [hasLoadedLocalProjects, projects]);
   useEffect(() => { setChoice(project?.steps[activeStep]?.selectedValue ?? ""); }, [activeStep, projectId]);
   useEffect(() => {
-    void fetch("http://127.0.0.1:4174/api/status").then((response) => response.ok ? response.json() : Promise.reject()).then((status) => setIntegration({ vault: Boolean(status.vault?.connected), hermes: Boolean(status.hermes?.configured) })).catch(() => setIntegration({ vault: false, hermes: false }));
+    void fetch("http://127.0.0.1:4174/api/status").then((response) => response.ok ? response.json() : Promise.reject()).then((status) => setIntegration({ vault: Boolean(status.vault?.connected), hermes: Boolean(status.hermes?.configured), committee: Boolean(status.committee?.configured) })).catch(() => setIntegration({ vault: false, hermes: false, committee: false }));
   }, []);
   const createNewProject = () => {
     const title = window.prompt("输入文章主题");
@@ -89,6 +91,17 @@ export default function Home() {
     if (!value?.trim()) return;
     mutate((item) => selectDefaultStyle(item, activeStep, value.trim()));
   };
+  const runCommittee = async () => {
+    if (!project || !integration.committee) return;
+    setIsRunning(true); setRunMessage("虚拟读者委员会正在召开选题会…");
+    try {
+      const response = await fetch("http://127.0.0.1:4174/api/reader-committee", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project, stage: "topic", materials: committeeMaterials, readerContext: "陌生读者 · 知道你" }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "委员会请求失败");
+      setCommitteeResult(result); setRunMessage(`选题会已完成，报告已写入 Obsidian：${result.reportPath}`);
+    } catch (error) { setRunMessage(error instanceof Error ? error.message : "委员会请求失败"); }
+    finally { setIsRunning(false); }
+  };
 
   if (project) return <main className="min-h-screen bg-[#f5f2ec] p-4 text-[#20211e] sm:p-8">
     <header className="mb-7 flex items-center justify-between"><button onClick={() => setProjectId(null)} className="text-sm text-[#556b5d]">← 返回看板</button><span className="rounded-full bg-white px-3 py-1 text-xs">{integration.vault ? "Obsidian 已连接" : "本地 MVP"} · {integration.hermes ? "Hermes 已就绪" : "Hermes 待接入"}</span></header>
@@ -96,6 +109,7 @@ export default function Home() {
       <section className="my-7 grid gap-2 rounded-2xl border border-[#dfdad0] bg-white p-4 shadow-sm lg:grid-cols-9">{STEPS.map(([id, label], i) => <button key={id} disabled={!canOpenStep(project, id)} onClick={() => setActiveStep(id)} className={`flex min-w-0 min-h-32 items-center justify-center rounded-xl p-3 text-center ${activeStep === id ? "bg-[#1f4733] text-white" : "bg-[#f6f4ef]"} disabled:opacity-45`}><span className={`flex items-center justify-center gap-2 text-lg font-semibold ${id === "wechat" ? "flex-wrap leading-6" : "whitespace-nowrap"}`}><span className="text-sm font-medium opacity-70">{i + 1}.</span><span>{label}</span><span className="text-base leading-none opacity-75">{project.steps[id].status === "confirmed" ? "✓" : "○"}</span></span></button>)}</section>
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]"><section className="rounded-2xl border border-[#dfdad0] bg-white p-6 shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-[#687269]">第 {STEPS.findIndex(([id]) => id === activeStep) + 1} 步</p><h2 className="text-2xl font-semibold">{STEPS.find(([id]) => id === activeStep)?.[1]}</h2></div><span className="rounded-full bg-[#e9efe9] px-3 py-1 text-sm text-[#315841]">{statusText[step.status]}</span></div>
         <div className="mt-6 rounded-xl bg-[#f7f6f2] p-4"><p className="text-xs text-[#758078]">本步骤规则来源（只读配置）</p><p className="mt-1 font-medium">{SKILL_MAP[activeStep].name} <span className="text-[#758078]">{SKILL_MAP[activeStep].version}</span></p>{SKILL_MAP[activeStep].model && <p className="mt-1 text-sm text-[#59635a]">默认模型：{SKILL_MAP[activeStep].model}</p>}</div>
+        {activeStep === "topic" && <div className="mt-6 rounded-xl border border-[#c8d8ca] bg-[#f2f7f1] p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">虚拟读者委员会 · 选题会</p><p className="mt-1 text-sm text-[#59635a]">6 类家长以“陌生读者 · 知道你”的固定截面独立提问；不会积累对你的好感。</p></div><span className="rounded-full bg-white px-3 py-1 text-xs text-[#315841]">{integration.committee ? "模型已就绪" : "等待本机模型配置"}</span></div><textarea value={committeeMaterials} onChange={(event) => setCommitteeMaterials(event.target.value)} placeholder="粘贴近期素材、家长问题或案例线索。留空则直接问：最近你们最想问我什么？" className="mt-4 min-h-28 w-full rounded-lg border border-[#d4ddd3] bg-white p-3 text-sm outline-none focus:border-[#527760]" /><button disabled={!integration.committee || isRunning} onClick={runCommittee} className="mt-3 rounded-lg bg-[#315841] px-4 py-2 text-sm text-white disabled:opacity-45">召开选题会</button>{committeeResult?.summary?.candidates?.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{committeeResult.summary.candidates.map((candidate, index) => <button key={`${candidate.title}-${index}`} onClick={() => setChoice(candidate.title)} className={`rounded-lg border bg-white p-3 text-left ${choice === candidate.title ? "border-[#315841]" : "border-[#d4ddd3]"}`}><p className="font-medium">{candidate.title}</p><p className="mt-1 text-sm text-[#59635a]">{candidate.why}</p><p className="mt-2 text-xs text-[#617263]">{candidate.type} · {candidate.readers?.join("、")}</p></button>)}</div> : null}</div>}
         {["cases", "angle", "title"].includes(activeStep) && <div className="mt-6"><p className="font-medium">{activeStep === "cases" ? `候选池 · 第 ${caseRound} 轮 · 勾选后收集一个主案例` : activeStep === "angle" ? "同一案例的候选角度 · 只选一个" : "候选标题 · 选一个锁定"}</p><div className="mt-3 grid gap-3 sm:grid-cols-2">{(activeStep === "cases" ? CASES : activeStep === "angle" ? ANGLES : TITLES).map((item) => <label key={item} className={`cursor-pointer rounded-xl border p-4 ${choice === item ? "border-[#386448] bg-[#f0f6ef]" : "border-[#e2ded6]"}`}><input className="mr-2" type="radio" name="choice" checked={choice === item} onChange={() => setChoice(item)} /><span className="font-medium">{item}</span>{activeStep === "cases" && <span className="mt-3 block border-t border-[#dfe5df] pt-3 text-xs leading-5 text-[#5d6a60]">匹配点、可支持方向、原始来源、来源可信度与证据风险，将由 Hermes 检索后写入 Obsidian；工作台只展示引用路径和确认状态。</span>}</label>)}</div>{activeStep === "cases" && <div className="mt-4 flex flex-wrap gap-3"><button onClick={() => { setChoice(""); setCaseRound((round) => round + 1); }} className="rounded-lg border border-[#b9c7bb] px-3 py-2 text-sm">重新搜索候选</button><button disabled={!choice} onClick={() => mutate((p) => selectStepValue(p, "cases", choice))} className="rounded-lg bg-[#e6f0e8] px-3 py-2 text-sm font-medium text-[#315841] disabled:opacity-40">收集已选案例</button></div>}</div>}
         {["outline", "draft"].includes(activeStep) && <div className="mt-6 rounded-xl border border-dashed border-[#c8d1c9] p-4"><p className="font-medium">完整版本</p><p className="mt-1 text-sm text-[#687269]">界面只记录版本与 Obsidian 路径；内容由 Hermes 生成后写入 Obsidian。</p>{activeStep === "draft" && <div className="mt-4 rounded-lg bg-[#fff7e5] p-3 text-sm"><b>事实审计区</b><br/>接口预留：审计状态、证据链接、待处理项。</div>}</div>}
         {activeStep === "layout" && <div className="mt-6 rounded-xl border border-dashed border-[#c8d1c9] p-4"><p className="font-medium">默认风格</p><p className="mt-1 text-sm text-[#687269]">首次选择后复用；第一阶段只保存偏好，不进行真实渲染或生成。</p><p className="mt-2 text-sm font-medium text-[#315841]">当前：{project.layoutStyle}</p><button onClick={chooseDefaultStyle} className="mt-3 rounded-lg border px-3 py-2 text-sm">选择默认风格</button></div>}

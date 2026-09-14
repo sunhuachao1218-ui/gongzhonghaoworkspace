@@ -2,10 +2,12 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createWorkbenchService } from "../lib/workbench-service.mjs";
+import { createReaderCommitteeService } from "../lib/reader-committee.mjs";
 
 const port = Number(process.env.WORKBENCH_SERVICE_PORT || 4174);
 const vaultRoot = process.env.OBSIDIAN_VAULT_PATH || "/Users/huachao/Documents/Obsidian Vault";
 const hermesEnvPath = "/Users/huachao/.hermes/.env";
+const committeeEnvPath = "/Users/huachao/.reader-committee/.env";
 const coverSampleRoots = {
   types: "/Users/huachao/Desktop/封面预览",
   palettes: "/Users/huachao/Desktop/封面样板/samples",
@@ -33,11 +35,28 @@ async function loadHermesApiEnvironment() {
   }
 }
 
+async function loadCommitteeEnvironment() {
+  try {
+    const text = await readFile(committeeEnvPath, "utf8");
+    return Object.fromEntries(text.split(/\r?\n/).flatMap((line) => {
+      const match = line.match(/^\s*(READER_COMMITTEE_(?:API_URL|API_KEY|MODEL))=(.*)\s*$/);
+      return match ? [[match[1], match[2].replace(/^['"]|['"]$/g, "")]] : [];
+    }));
+  } catch { return {}; }
+}
+
 const hermesEnvironment = await loadHermesApiEnvironment();
+const committeeEnvironment = await loadCommitteeEnvironment();
 const service = createWorkbenchService({
   vaultRoot,
   hermesUrl: process.env.HERMES_API_URL || (hermesEnvironment.API_SERVER_ENABLED === "true" ? `http://${hermesEnvironment.API_SERVER_HOST || "127.0.0.1"}:${hermesEnvironment.API_SERVER_PORT || "8642"}` : undefined),
   hermesApiKey: process.env.HERMES_API_KEY || hermesEnvironment.API_SERVER_KEY,
+});
+const committee = createReaderCommitteeService({
+  vaultRoot,
+  apiUrl: process.env.READER_COMMITTEE_API_URL || committeeEnvironment.READER_COMMITTEE_API_URL,
+  apiKey: process.env.READER_COMMITTEE_API_KEY || committeeEnvironment.READER_COMMITTEE_API_KEY,
+  model: process.env.READER_COMMITTEE_MODEL || committeeEnvironment.READER_COMMITTEE_MODEL || "GLM-5.3-Flash",
 });
 
 function respond(response, status, body) {
@@ -65,10 +84,11 @@ createServer(async (request, response) => {
     const pathname = new URL(request.url || "/", "http://127.0.0.1").pathname;
     const sample = pathname.match(/^\/api\/cover-samples\/(types|palettes|renderings)\/([^/]+)$/);
     if (request.method === "GET" && sample) return respondCoverSample(response, sample[1], sample[2]);
-    if (request.method === "GET" && request.url === "/api/status") return respond(response, 200, await service.status());
+    if (request.method === "GET" && request.url === "/api/status") return respond(response, 200, { ...(await service.status()), committee: { configured: committee.configured } });
     if (request.method === "GET" && request.url === "/api/projects") return respond(response, 200, await service.listProjects());
     if (request.method === "PUT" && request.url === "/api/projects") return respond(response, 200, await service.saveProject(await readJson(request)));
     if (request.method === "POST" && request.url === "/api/runs") return respond(response, 202, await service.runStep(await readJson(request)));
+    if (request.method === "POST" && request.url === "/api/reader-committee") return respond(response, 200, await committee.run(await readJson(request)));
     if (request.method === "GET" && request.url?.startsWith("/api/runs/")) return respond(response, 200, await service.getRunStatus(request.url.slice("/api/runs/".length)));
     return respond(response, 404, { error: "Not found" });
   } catch (error) {
