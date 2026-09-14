@@ -14,9 +14,10 @@ test("saves an OpenRouter selection locally without returning the API key", asyn
   assert.equal("apiKey" in publicSettings, false);
 });
 
-test("lists only usable OpenRouter chat models", async () => {
+test("lists only models added within the latest six months", async () => {
   const store = createReaderCommitteeSettingsStore({ envPath: "/tmp/unused-reader-settings" });
-  const models = await store.listModels(async () => ({ ok: true, json: async () => ({ data: [{ id: "openai/gpt-5.4-mini", name: "GPT mini" }, { id: "not-a-chat-model" }] }) }));
+  const now = Date.now();
+  const models = await store.listModels(async () => ({ ok: true, json: async () => ({ data: [{ id: "openai/gpt-5.4-mini", name: "GPT mini", created: Math.floor(now / 1000) }, { id: "old/model", name: "旧模型", created: Math.floor((now - 200 * 86400000) / 1000) }] }) }));
 
-  assert.deepEqual(models, [{ id: "openai/gpt-5.4-mini", name: "GPT mini" }, { id: "not-a-chat-model", name: "not-a-chat-model" }]);
+  assert.deepEqual(models, [{ id: "openai/gpt-5.4-mini", name: "GPT mini", created: Math.floor(now / 1000) }]);
 });
