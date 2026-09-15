@@ -31,6 +31,17 @@ test("keeps an existing article project inside its declared Obsidian directory",
   assert.equal(await readFile(join(vaultRoot, "公众号/进行中/已有文章/project.json"), "utf8").then(Boolean), true);
 });
 
+test("ignores workspace files when listing article projects", async () => {
+  const vaultRoot = await mkdtemp(join(tmpdir(), "vault-store-"));
+  const store = createVaultStore({ vaultRoot });
+  await store.saveProject({ id: "article-1", title: "测试", obsidianPath: "04-内容创作/公众号/工作台项目/article-1" });
+  await writeFile(join(vaultRoot, "04-内容创作/公众号/工作台项目/reader-committee-config.json"), "{}", "utf8");
+
+  const projects = await store.listProjects();
+
+  assert.deepEqual(projects.map((project) => project.id), ["article-1"]);
+});
+
 test("lists only markdown artifact paths in the current project directory", async () => {
   const vaultRoot = await mkdtemp(join(tmpdir(), "vault-store-"));
   const store = createVaultStore({ vaultRoot });

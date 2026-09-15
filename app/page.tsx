@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { INITIAL_PROJECTS, SKILL_MAP, CASES, ANGLES, TITLES, COVER_OPTIONS } from "../lib/data.js";
 import { adjacentCoverSample } from "../lib/cover-carousel.js";
 import { mergeSkillMap } from "../lib/skill-map.js";
+import { mergeProjects } from "../lib/project-list.js";
 import { restoreView } from "../lib/view-state.js";
 import { STEPS, addVersion, canOpenStep, confirmStep, createProject, ensureCoverTestProject, requestRevision, selectCoverOption, selectDefaultStyle, selectStepValue } from "../lib/workflow.js";
 
@@ -74,6 +75,13 @@ export default function Home() {
   useEffect(() => { void fetch("http://127.0.0.1:4174/api/reader-committee/config").then((response) => response.ok ? response.json() : Promise.reject()).then(setCommitteeConfig).catch(() => undefined); }, []);
   useEffect(() => { if (hasLoadedLocalProjects) localStorage.setItem("gongzhonghao-workbench-projects", JSON.stringify(projects)); }, [hasLoadedLocalProjects, projects]);
   useEffect(() => { if (hasLoadedLocalProjects) localStorage.setItem("gongzhonghao-workbench-view", JSON.stringify({ projectId, activeStep })); }, [hasLoadedLocalProjects, projectId, activeStep]);
+  useEffect(() => {
+    if (!hasLoadedLocalProjects) return;
+    void fetch("http://127.0.0.1:4174/api/projects")
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((vaultProjects) => setProjects((current) => mergeProjects(current, vaultProjects)))
+      .catch(() => undefined);
+  }, [hasLoadedLocalProjects]);
   useEffect(() => { setChoice(project?.steps[activeStep]?.selectedValue ?? ""); }, [activeStep, projectId]);
   useEffect(() => {
     void fetch("http://127.0.0.1:4174/api/status").then((response) => response.ok ? response.json() : Promise.reject()).then((status) => { setIntegration({ vault: Boolean(status.vault?.connected), hermes: Boolean(status.hermes?.configured), committee: Boolean(status.committee?.configured) }); setModelSettings(status.committee?.configured ? status.committee : { model: "", configured: false }); }).catch(() => setIntegration({ vault: false, hermes: false, committee: false }));
