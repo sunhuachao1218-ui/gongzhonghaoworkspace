@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { INITIAL_PROJECTS, SKILL_MAP, CASES, ANGLES, TITLES, COVER_OPTIONS } from "../lib/data.js";
+import { INITIAL_PROJECTS, SKILL_MAP, ANGLES, TITLES, COVER_OPTIONS } from "../lib/data.js";
+import { candidatesForDisplay } from "../lib/candidates.js";
 import { adjacentCoverSample } from "../lib/cover-carousel.js";
 import { mergeSkillMap } from "../lib/skill-map.js";
 import { mergeProjects } from "../lib/project-list.js";
@@ -46,7 +47,7 @@ export default function Home() {
     return nextProject;
   }));
   const step = activeStep && project?.steps[activeStep];
-  const displayedCandidates = candidateResults[activeStep]?.length ? candidateResults[activeStep] : (activeStep === "cases" ? CASES : activeStep === "angle" ? ANGLES : TITLES).map((title) => ({ id: title, title }));
+  const displayedCandidates = candidatesForDisplay(candidateResults, activeStep);
   const previewSamples = samplePreview ? COVER_OPTIONS[samplePreview.dimension] || [] : [];
   const moveSamplePreview = (direction) => {
     if (!samplePreview) return;
