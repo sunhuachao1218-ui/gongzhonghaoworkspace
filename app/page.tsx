@@ -66,8 +66,16 @@ export default function Home() {
     syncProject(created);
     setProjectId(created.id); setActiveStep("topic"); setChoice("");
   };
+  const loadArtifacts = async (targetProject = project) => {
+    if (!targetProject) return [];
+    const response = await fetch("http://127.0.0.1:4174/api/projects/artifacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project: targetProject }) });
+    const files = await response.json();
+    if (!response.ok) throw new Error(files.error || "读取 Obsidian 文件失败");
+    return files;
+  };
   const requestHermesRun = async () => {
     if (!project || !activeStep || !integration.hermes) return;
+    const startedAt = Date.now();
     setRunMessage("正在交给 Hermes…");
     try {
       const response = await fetch("http://127.0.0.1:4174/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project, step: { id: activeStep, label: STEPS.find(([id]) => id === activeStep)?.[1] }, skill: SKILL_MAP[activeStep] }) });
@@ -80,9 +88,11 @@ export default function Home() {
         const status = await statusResponse.json();
         if (!statusResponse.ok) throw new Error(status.error || "状态查询失败");
         if (["completed", "succeeded"].includes(status.status)) {
-          mutate((item) => addVersion(item, activeStep));
+          const artifacts = project.vaultManaged ? await loadArtifacts(project) : [];
+          const generated = artifacts.find((artifact) => artifact.modifiedAt >= startedAt - 2000);
+          mutate((item) => addVersion(item, activeStep, generated?.path));
           setIsRunning(false);
-          setRunMessage("Hermes 已完成。内容在 Obsidian 中；请核对后确认本版本。");
+          setRunMessage(generated ? `Hermes 已完成，已识别 Obsidian 文件：${generated.path}。请核对后确认本版本。` : "Hermes 已完成，但当前项目目录未发现本次新增的 Markdown 文件；请在 Obsidian 核对后再确认。");
           return;
         }
         if (["failed", "cancelled"].includes(status.status)) throw new Error(status.error || "Hermes 未完成本次任务");

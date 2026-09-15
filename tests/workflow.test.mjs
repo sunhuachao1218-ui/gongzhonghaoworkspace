@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canOpenStep, confirmStep, requestRevision, createCoverTestProject, createProject, ensureCoverTestProject, selectCoverOption, selectStepValue, selectDefaultStyle } from "../lib/workflow.js";
+import { addVersion, canOpenStep, confirmStep, requestRevision, createCoverTestProject, createProject, ensureCoverTestProject, selectCoverOption, selectStepValue, selectDefaultStyle } from "../lib/workflow.js";
 
 const project = {
   currentStep: "topic",
@@ -39,6 +39,16 @@ test("selecting a confirmed draft stores only its Obsidian file path", () => {
 
   assert.equal(updated.confirmedDraftPath, "draft-v2.md");
   assert.equal(updated.steps.draft.selectedValue, "draft-v2.md");
+});
+
+test("confirming a generated version keeps its Obsidian artifact path", () => {
+  const created = createProject("测试文章");
+  const generated = addVersion(created, "draft", "draft-v1.md");
+  const confirmed = confirmStep(generated, "draft");
+
+  assert.deepEqual(confirmed.steps.draft.versions, ["v1"]);
+  assert.equal(confirmed.steps.draft.confirmedVersion, "v1");
+  assert.equal(confirmed.steps.draft.artifactPaths.v1, "draft-v1.md");
 });
 
 test("selecting a committee topic updates the project theme before confirmation", () => {

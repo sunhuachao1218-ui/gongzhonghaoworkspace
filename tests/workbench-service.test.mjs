@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkbenchService } from "../lib/workbench-service.mjs";
@@ -24,6 +24,20 @@ test("saves lightweight project state through the bridge", async () => {
 
   assert.equal(saved.id, "article-1");
   assert.equal("body" in saved, false);
+});
+
+test("returns artifact paths without returning their markdown content", async () => {
+  const vaultRoot = await mkdtemp(join(tmpdir(), "workbench-service-"));
+  const project = { id: "article-1", title: "测试项目", obsidianPath: "04-内容创作/公众号/工作台项目/article-1" };
+  const directory = join(vaultRoot, project.obsidianPath);
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "draft-v1.md"), "这段正文不会进入工作台", "utf8");
+  const service = createWorkbenchService({ vaultRoot });
+
+  const files = await service.listArtifacts(project);
+
+  assert.equal(files[0].path, "draft-v1.md");
+  assert.equal("content" in files[0], false);
 });
 
 test("dispatches a selected step by Skill name without embedding writing rules", async () => {
