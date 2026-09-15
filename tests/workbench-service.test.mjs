@@ -40,6 +40,20 @@ test("returns artifact paths without returning their markdown content", async ()
   assert.equal("content" in files[0], false);
 });
 
+test("returns a candidate manifest only for the requested workflow step", async () => {
+  const vaultRoot = await mkdtemp(join(tmpdir(), "workbench-service-"));
+  const project = { id: "article-1", title: "测试项目", obsidianPath: "04-内容创作/公众号/工作台项目/article-1" };
+  const directory = join(vaultRoot, project.obsidianPath, ".workbench");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "title.json"), JSON.stringify({ candidates: [{ id: "title-1", title: "标题 A" }] }), "utf8");
+  const service = createWorkbenchService({ vaultRoot });
+
+  const result = await service.readCandidates(project, "title");
+
+  assert.equal(result.sourcePath, ".workbench/title.json");
+  assert.deepEqual(result.candidates, [{ id: "title-1", title: "标题 A" }]);
+});
+
 test("dispatches a selected step by Skill name without embedding writing rules", async () => {
   const vaultRoot = await mkdtemp(join(tmpdir(), "workbench-service-"));
   let request;
@@ -62,6 +76,28 @@ test("dispatches a selected step by Skill name without embedding writing rules",
   assert.equal(result.id, "run_test");
   assert.match(JSON.parse(request.body).input, /article-draft-writing v1\.1\.1/);
   assert.doesNotMatch(JSON.parse(request.body).input, /1000|1500|规则细节/);
+});
+
+test("asks Hermes for a display-only candidate manifest on a candidate step", async () => {
+  const vaultRoot = await mkdtemp(join(tmpdir(), "workbench-service-"));
+  let request;
+  const service = createWorkbenchService({
+    vaultRoot,
+    hermesUrl: "http://127.0.0.1:8642",
+    hermesApiKey: "local-test-key-that-is-long-enough",
+    fetchImpl: async (_url, options) => {
+      request = options;
+      return { ok: true, json: async () => ({ run_id: "run_test" }) };
+    },
+  });
+
+  await service.runStep({
+    project: { id: "article-1", title: "测试项目", obsidianPath: "04-内容创作/公众号/工作台项目/article-1" },
+    step: { id: "cases", label: "找案例" },
+    skill: { name: "case-search", version: "v1" },
+  });
+
+  assert.match(JSON.parse(request.body).input, /\.workbench\/cases\.json/);
 });
 
 test("returns a pollable Hermes run status without returning content to the workbench", async () => {

@@ -36,3 +36,17 @@ test("lists only markdown artifact paths in the current project directory", asyn
   assert.equal(typeof files[0].modifiedAt, "number");
   assert.equal("content" in files[0], false);
 });
+
+test("reads a Hermes candidate manifest without copying it into project metadata", async () => {
+  const vaultRoot = await mkdtemp(join(tmpdir(), "vault-store-"));
+  const store = createVaultStore({ vaultRoot });
+  const project = { id: "article-1", title: "测试", obsidianPath: "04-内容创作/公众号/工作台项目/article-1" };
+  const directory = join(vaultRoot, project.obsidianPath, ".workbench");
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, "cases.json"), JSON.stringify({ candidates: [{ id: "case-1", title: "案例 A", summary: "一句话概述" }] }), "utf8");
+
+  const result = await store.readCandidates(project, "cases");
+
+  assert.equal(result.sourcePath, ".workbench/cases.json");
+  assert.deepEqual(result.candidates, [{ id: "case-1", title: "案例 A", summary: "一句话概述" }]);
+});
