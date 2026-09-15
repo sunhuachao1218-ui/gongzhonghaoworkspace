@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { INITIAL_PROJECTS, SKILL_MAP, ANGLES, TITLES, COVER_OPTIONS } from "../lib/data.js";
 import { candidatesForDisplay } from "../lib/candidates.js";
+import { buildCaseSearchInput } from "../lib/case-search-feedback.js";
 import { adjacentCoverSample } from "../lib/cover-carousel.js";
 import { mergeSkillMap } from "../lib/skill-map.js";
 import { mergeProjects } from "../lib/project-list.js";
@@ -112,6 +113,10 @@ export default function Home() {
   };
   const requestHermesRun = async () => {
     if (!project || !activeStep || !integration.hermes) return;
+    const feedback = activeStep === "cases" && caseRound > 1 ? window.prompt(`第 ${caseRound} 轮找案例：告诉 Hermes 要补充、排除或调整什么`, project.caseSearchFeedback || "") : "";
+    if (feedback === null) return;
+    const input = activeStep === "cases" ? buildCaseSearchInput(caseRound, feedback) : "";
+    if (input) mutate((item) => ({ ...item, caseSearchFeedback: String(feedback).trim() }));
     let skill = SKILL_MAP[activeStep];
     if (skill.name === "待配置") {
       const stepLabel = STEPS.find(([id]) => id === activeStep)?.[1] || "当前步骤";
@@ -126,7 +131,7 @@ export default function Home() {
     const startedAt = Date.now();
     setRunMessage("正在交给 Hermes…");
     try {
-      const response = await fetch("http://127.0.0.1:4174/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project, step: { id: activeStep, label: STEPS.find(([id]) => id === activeStep)?.[1] }, skill }) });
+      const response = await fetch("http://127.0.0.1:4174/api/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project, step: { id: activeStep, label: STEPS.find(([id]) => id === activeStep)?.[1] }, skill, input }) });
       if (!response.ok) throw new Error((await response.json()).error || "请求失败");
       const started = await response.json();
       setIsRunning(true);
