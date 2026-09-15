@@ -15,10 +15,20 @@ test("saves only lightweight project metadata in a project.json file", async () 
   assert.equal("body" in saved, false);
 });
 
-test("rejects a project path that escapes the workspace", async () => {
+test("rejects a project path that escapes the vault", async () => {
   const vaultRoot = await mkdtemp(join(tmpdir(), "vault-store-"));
   const store = createVaultStore({ vaultRoot });
-  await assert.rejects(() => store.saveProject({ id: "article-1", title: "测试", obsidianPath: "../../outside" }), /within the workspace/);
+  await assert.rejects(() => store.saveProject({ id: "article-1", title: "测试", obsidianPath: "../../outside" }), /within the vault/);
+});
+
+test("keeps an existing article project inside its declared Obsidian directory", async () => {
+  const vaultRoot = await mkdtemp(join(tmpdir(), "vault-store-"));
+  const store = createVaultStore({ vaultRoot });
+
+  const saved = await store.saveProject({ id: "article-1", title: "测试", obsidianPath: "公众号/进行中/已有文章" });
+
+  assert.equal(saved.obsidianPath, "公众号/进行中/已有文章");
+  assert.equal(await readFile(join(vaultRoot, "公众号/进行中/已有文章/project.json"), "utf8").then(Boolean), true);
 });
 
 test("lists only markdown artifact paths in the current project directory", async () => {

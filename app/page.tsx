@@ -32,7 +32,7 @@ export default function Home() {
   const project = projects.find((item) => item.id === projectId);
   const open = (id) => { const item = projects.find((p) => p.id === id); setProjectId(id); setActiveStep(item.currentStep); setChoice(""); };
   const syncProject = (nextProject) => {
-    if (!nextProject.vaultManaged) return;
+    if (nextProject.vaultManaged === false) return;
     void fetch("http://127.0.0.1:4174/api/projects", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(nextProject) }).catch(() => undefined);
   };
   const mutate = (fn) => setProjects((items) => items.map((p) => {
@@ -76,7 +76,7 @@ export default function Home() {
     return files;
   };
   const loadCandidates = async (stepId = activeStep, targetProject = project) => {
-    if (!targetProject?.vaultManaged || !["cases", "angle", "title"].includes(stepId)) return [];
+    if (targetProject?.vaultManaged === false || !["cases", "angle", "title"].includes(stepId)) return [];
     const response = await fetch("http://127.0.0.1:4174/api/projects/candidates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project: targetProject, stepId }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "读取 Hermes 候选失败");
@@ -98,8 +98,8 @@ export default function Home() {
         const status = await statusResponse.json();
         if (!statusResponse.ok) throw new Error(status.error || "状态查询失败");
         if (["completed", "succeeded"].includes(status.status)) {
-          const artifacts = project.vaultManaged ? await loadArtifacts(project) : [];
-          const candidates = project.vaultManaged ? await loadCandidates(activeStep, project) : [];
+          const artifacts = project.vaultManaged !== false ? await loadArtifacts(project) : [];
+          const candidates = project.vaultManaged !== false ? await loadCandidates(activeStep, project) : [];
           const generated = artifacts.find((artifact) => artifact.modifiedAt >= startedAt - 2000);
           mutate((item) => addVersion(item, activeStep, generated?.path));
           setIsRunning(false);
